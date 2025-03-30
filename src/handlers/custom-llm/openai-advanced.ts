@@ -4,6 +4,23 @@ import { envConfig } from '../../config/env.config';
 
 const openai = new OpenAI({ apiKey: envConfig.openai.apiKey });
 
+/**
+ * Express handler for enhanced OpenAI chat completions with prompt improvement
+ * This endpoint is used when:
+ * 1. You want to automatically enhance user prompts for better results
+ * 2. You need the flexibility of both streaming and non-streaming responses
+ * 
+ * The handler first processes the original prompt through GPT-3.5-turbo-instruct
+ * to create a more detailed version, then uses this enhanced prompt for the final completion.
+ * 
+ * @param req - Express request object containing:
+ *   - model: OpenAI model to use (defaults to gpt-3.5-turbo)
+ *   - messages: Array of chat messages
+ *   - max_tokens: Maximum tokens to generate (defaults to 150)
+ *   - temperature: Sampling temperature (defaults to 0.7)
+ *   - stream: Boolean flag for streaming mode
+ * @param res - Express response object for returning completion data
+ */
 export const openaiAdvanced = async (req: Request, res: Response) => {
   try {
     const {
@@ -16,7 +33,10 @@ export const openaiAdvanced = async (req: Request, res: Response) => {
       ...restParams
     } = req.body;
 
+    // Extract the last message from the conversation
     const lastMessage = messages?.[messages.length - 1];
+    
+    // Generate an enhanced version of the prompt using GPT-3.5-turbo-instruct
     const prompt = await openai.completions.create({
       model: 'gpt-3.5-turbo-instruct',
       prompt: `
@@ -28,12 +48,14 @@ export const openaiAdvanced = async (req: Request, res: Response) => {
       temperature: 0.7,
     });
 
+    // Create a new message array with the enhanced prompt
     const modifiedMessage = [
       ...messages.slice(0, messages.length - 1),
       { ...lastMessage, content: prompt.choices[0].text },
     ];
 
     if (stream) {
+      // Handle streaming mode with enhanced prompt
       const completionStream = await openai.chat.completions.create({
         model: model || 'gpt-3.5-turbo',
         ...restParams,
@@ -51,6 +73,7 @@ export const openaiAdvanced = async (req: Request, res: Response) => {
       }
       res.end();
     } else {
+      // Handle non-streaming mode with enhanced prompt
       const completion = await openai.chat.completions.create({
         model: model || 'gpt-3.5-turbo',
         ...restParams,
